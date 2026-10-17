@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ApiService } from '../../core/services/api.service';
@@ -38,20 +38,41 @@ interface CheckInStats {
       <!-- Header -->
       <div class="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-slate-800">
         <div>
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20 mb-2">
-            <span>📷 CỔNG KIỂM SOÁT VÉ THỜI GIAN THỰC</span>
+          <div class="flex items-center gap-2 mb-2">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+              <span>📷 CỔNG SOÁT VÉ E-TICKET REAL-TIME</span>
+            </span>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold"
+              [ngClass]="effectiveOnline() ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'">
+              <span class="w-2 h-2 rounded-full" [ngClass]="effectiveOnline() ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'"></span>
+              <span>{{ effectiveOnline() ? 'CHẾ ĐỘ ONLINE' : 'CHẾ ĐỘ NGOẠI TUYẾN (OFFLINE)' }}</span>
+            </span>
           </div>
           <h1 class="text-2xl sm:text-3xl font-extrabold text-white">Soát vé E-Ticket tại cổng</h1>
-          <p class="text-xs text-slate-400">Kiểm tra chữ ký số HMAC & ngăn chặn gian lận chụp màn hình vé</p>
+          <p class="text-xs text-slate-400">Kiểm tra chữ ký số HMAC & ngăn chặn gian lận vé quét trùng lặp</p>
         </div>
 
-        <!-- Offline Sync Button -->
-        <div class="flex items-center gap-3">
+        <!-- Actions -->
+        <div class="flex flex-wrap items-center gap-3">
+          <button (click)="toggleForceOffline()"
+            class="px-3 py-2 text-xs font-semibold rounded-xl border transition flex items-center gap-1.5"
+            [ngClass]="forceOffline() ? 'bg-amber-600 text-white border-amber-500' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'">
+            <span>{{ forceOffline() ? '📡 Thoát giả lập Offline' : '🔌 Giả lập mất mạng' }}</span>
+          </button>
+
           <button (click)="syncOfflineManifest()" [disabled]="syncing()"
             class="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-purple-300 border border-slate-700 transition flex items-center gap-2">
             <span>📥</span>
-            <span>{{ syncing() ? 'Đang đồng bộ...' : 'Tải vé chạy Offline (' + offlineCount() + ')' }}</span>
+            <span>{{ syncing() ? 'Đang tải...' : 'Tải vé Offline (' + offlineCount() + ')' }}</span>
           </button>
+
+          @if (pendingSyncCount() > 0) {
+            <button (click)="uploadOfflineQueue()" [disabled]="uploadingQueue()"
+              class="px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30 transition flex items-center gap-2 animate-bounce">
+              <span>📤</span>
+              <span>{{ uploadingQueue() ? 'Đang tải lên...' : 'Đồng bộ ' + pendingSyncCount() + ' vé offline' }}</span>
+            </button>
+          }
         </div>
       </div>
 
@@ -144,11 +165,16 @@ export class StaffScannerComponent implements OnInit {
 
   readonly verifying = signal(false);
   readonly syncing = signal(false);
+  readonly uploadingQueue = signal(false);
+  readonly forceOffline = signal(false);
+  readonly isOnline = signal(typeof navigator !== 'undefined' ? navigator.onLine : true);
   readonly lastResult = signal<CheckInResult | null>(null);
   readonly stats = signal<CheckInStats | null>(null);
   readonly offlineCount = signal(0);
+  readonly pendingSyncCount = signal(0);
 
-  // Default sample event ID or dynamically fetched
+  readonly effectiveOnline = computed(() => this.isOnline() && !this.forceOffline());
+
   private currentEventId: string | null = null;
 
   readonly scanForm = this.fb.group({
@@ -158,6 +184,16 @@ export class StaffScannerComponent implements OnInit {
   ngOnInit(): void {
     this.loadEventStats();
     this.checkLocalOfflineStorage();
+    this.refreshPendingSyncCount();
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => this.isOnline.set(true));
+      window.addEventListener('offline', () => this.isOnline.set(false));
+    }
+  }
+
+  toggleForceOffline(): void {
+    this.forceOffline.update(v => !v);
   }
 
   private loadEventStats(): void {
@@ -165,13 +201,18 @@ export class StaffScannerComponent implements OnInit {
       next: res => {
         if (res.success && res.data && res.data.length > 0) {
           this.currentEventId = res.data[0].id;
-          this.api.get<CheckInStats>(`check-in/stats/${this.currentEventId}`).subscribe({
-            next: statsRes => {
-              if (statsRes.success && statsRes.data) {
-                this.stats.set(statsRes.data);
-              }
-            }
-          });
+          this.refreshStats();
+        }
+      }
+    });
+  }
+
+  private refreshStats(): void {
+    if (!this.currentEventId) return;
+    this.api.get<CheckInStats>(`check-in/stats/${this.currentEventId}`).subscribe({
+      next: statsRes => {
+        if (statsRes.success && statsRes.data) {
+          this.stats.set(statsRes.data);
         }
       }
     });
@@ -189,6 +230,22 @@ export class StaffScannerComponent implements OnInit {
         this.offlineCount.set(0);
       }
     }
+  }
+
+  private refreshPendingSyncCount(): void {
+    const queueStr = localStorage.getItem('offline_checkin_queue');
+    if (queueStr) {
+      try {
+        const queue: unknown = JSON.parse(queueStr);
+        if (Array.isArray(queue)) {
+          this.pendingSyncCount.set(queue.length);
+          return;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    this.pendingSyncCount.set(0);
   }
 
   syncOfflineManifest(): void {
@@ -211,6 +268,41 @@ export class StaffScannerComponent implements OnInit {
     });
   }
 
+  uploadOfflineQueue(): void {
+    if (!this.currentEventId) return;
+    const queueStr = localStorage.getItem('offline_checkin_queue');
+    if (!queueStr) return;
+
+    let queue: Array<{ ticketCode: string; scannedAt: string }> = [];
+    try {
+      queue = JSON.parse(queueStr);
+    } catch {
+      return;
+    }
+
+    if (queue.length === 0) return;
+
+    this.uploadingQueue.set(true);
+    this.api.post<{ successfullySynced: number; totalSubmitted: number }>('check-in/sync-offline', {
+      eventId: this.currentEventId,
+      items: queue
+    }).subscribe({
+      next: res => {
+        this.uploadingQueue.set(false);
+        if (res.success) {
+          localStorage.removeItem('offline_checkin_queue');
+          this.pendingSyncCount.set(0);
+          this.refreshStats();
+          alert(res.message || 'Đồng bộ danh sách vé ngoại tuyến lên máy chủ thành công!');
+        }
+      },
+      error: () => {
+        this.uploadingQueue.set(false);
+        alert('Lỗi kết nối khi đồng bộ vé ngoại tuyến lên máy chủ.');
+      }
+    });
+  }
+
   onScanSubmit(): void {
     if (this.scanForm.invalid) return;
 
@@ -220,6 +312,14 @@ export class StaffScannerComponent implements OnInit {
     this.verifying.set(true);
     this.lastResult.set(null);
 
+    // If running in offline mode: execute offline check directly
+    if (!this.effectiveOnline()) {
+      this.executeOfflineCheck(qrInput);
+      this.verifying.set(false);
+      return;
+    }
+
+    // Online mode: call backend API
     this.api.post<CheckInResult>('check-in/scan', {
       qrCodeString: qrInput,
       eventId: this.currentEventId || undefined
@@ -229,20 +329,90 @@ export class StaffScannerComponent implements OnInit {
         if (res.success && res.data) {
           this.lastResult.set(res.data);
           this.scanForm.reset();
-          if (this.currentEventId) {
-            this.api.get<CheckInStats>(`check-in/stats/${this.currentEventId}`).subscribe({
-              next: s => { if (s.success && s.data) this.stats.set(s.data); }
-            });
-          }
+          this.refreshStats();
         }
       },
-      error: err => {
+      error: () => {
+        // Fallback to offline check if network unexpectedly drops
+        this.executeOfflineCheck(qrInput);
         this.verifying.set(false);
-        this.lastResult.set({
-          status: 'INVALID',
-          message: err.message || 'Lỗi kết nối máy chủ soát vé.'
-        });
       }
     });
+  }
+
+  private executeOfflineCheck(qrInput: string): void {
+    let ticketCode = qrInput;
+    try {
+      const parsed = JSON.parse(qrInput);
+      if (parsed.payload && parsed.payload.ticketCode) {
+        ticketCode = parsed.payload.ticketCode;
+      } else if (parsed.ticketCode) {
+        ticketCode = parsed.ticketCode;
+      }
+    } catch {
+      // use raw input
+    }
+
+    const cachedStr = localStorage.getItem('offline_tickets_manifest');
+    if (!cachedStr) {
+      this.lastResult.set({
+        status: 'INVALID',
+        message: 'Chế độ Offline chưa được tải danh sách vé. Vui lòng bấm "Tải vé Offline" trước khi mất mạng.'
+      });
+      return;
+    }
+
+    let manifest: OfflineTicket[] = [];
+    try {
+      manifest = JSON.parse(cachedStr);
+    } catch {
+      manifest = [];
+    }
+
+    const ticket = manifest.find(t => t.ticketCode.toLowerCase() === ticketCode.toLowerCase());
+    if (!ticket) {
+      this.lastResult.set({
+        status: 'INVALID',
+        message: 'VÉ KHÔNG HỢP LỆ (Không tìm thấy mã vé trong danh sách sự kiện offline)'
+      });
+      return;
+    }
+
+    if (ticket.isCheckedIn) {
+      this.lastResult.set({
+        status: 'ALREADY_USED',
+        message: '🚨 CẢNH BÁO GIAN LẬN: VÉ ĐÃ ĐƯỢC CHECK-IN RỒI! (Quét trùng lặp)',
+        ticketCode: ticket.ticketCode,
+        customerName: ticket.customerName,
+        tierName: ticket.tierName,
+        seatLabel: ticket.seatLabel
+      });
+      return;
+    }
+
+    // Valid offline scan
+    ticket.isCheckedIn = true;
+    localStorage.setItem('offline_tickets_manifest', JSON.stringify(manifest));
+
+    const queueStr = localStorage.getItem('offline_checkin_queue');
+    let queue: Array<{ ticketCode: string; scannedAt: string }> = [];
+    if (queueStr) {
+      try { queue = JSON.parse(queueStr); } catch { queue = []; }
+    }
+    queue.push({ ticketCode: ticket.ticketCode, scannedAt: new Date().toISOString() });
+    localStorage.setItem('offline_checkin_queue', JSON.stringify(queue));
+    this.pendingSyncCount.set(queue.length);
+
+    this.lastResult.set({
+      status: 'SUCCESS',
+      message: `✅ CHECK-IN NGOẠI TUYẾN THÀNH CÔNG! Ghế: ${ticket.seatLabel} (Đã lưu vào hàng đợi đồng bộ)`,
+      ticketCode: ticket.ticketCode,
+      customerName: ticket.customerName,
+      tierName: ticket.tierName,
+      seatLabel: ticket.seatLabel,
+      checkedInAt: new Date().toISOString()
+    });
+
+    this.scanForm.reset();
   }
 }

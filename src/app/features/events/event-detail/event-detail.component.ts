@@ -295,8 +295,12 @@ export class EventDetailComponent implements OnInit, OnDestroy {
       const left = this.secondsLeft() - 1;
       if (left <= 0) {
         this.stopTimer();
-        alert('Hết thời gian giữ chỗ (5 phút). Ghế đã được trả về trạng thái trống.');
+        const currentRes = this.reservation();
         this.reservation.set(null);
+        if (currentRes?.orderCode) {
+          this.api.delete(`orders/${currentRes.orderCode}/cancel`).subscribe();
+        }
+        alert('Hết thời gian giữ chỗ (5 phút). Ghế đã được giải phóng trên hệ thống.');
         if (this.event()) this.loadEvent(this.event()!.slug);
       } else {
         this.secondsLeft.set(left);
@@ -336,8 +340,21 @@ export class EventDetailComponent implements OnInit, OnDestroy {
   }
 
   onCancelReservation(): void {
+    const res = this.reservation();
     this.stopTimer();
     this.reservation.set(null);
-    if (this.event()) this.loadEvent(this.event()!.slug);
+
+    if (res?.orderCode) {
+      this.api.delete(`orders/${res.orderCode}/cancel`).subscribe({
+        next: () => {
+          if (this.event()) this.loadEvent(this.event()!.slug);
+        },
+        error: () => {
+          if (this.event()) this.loadEvent(this.event()!.slug);
+        }
+      });
+    } else {
+      if (this.event()) this.loadEvent(this.event()!.slug);
+    }
   }
 }
