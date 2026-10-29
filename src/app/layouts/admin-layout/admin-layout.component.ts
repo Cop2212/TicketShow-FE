@@ -18,6 +18,11 @@ import { AuthService } from '../../core/services/auth.service';
               <span>TicketShow Admin</span>
             </a>
           </div>
+          <div class="p-4 pb-0">
+            <a routerLink="/admin/events/create" class="flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-bold rounded-xl bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-600/30 transition">
+              <span>+</span> Tạo Show Diễn Mới
+            </a>
+          </div>
 
           <nav class="p-4 space-y-1">
             <a routerLink="/admin" class="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg bg-slate-800 text-white">

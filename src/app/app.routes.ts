@@ -5,6 +5,7 @@ import { HomeComponent } from './features/home/home.component';
 import { LoginComponent } from './features/auth/login/login.component';
 import { RegisterComponent } from './features/auth/register/register.component';
 import { AdminDashboardComponent } from './features/admin/dashboard/admin-dashboard.component';
+import { AdminCreateEventComponent } from './features/admin/events/admin-create-event.component';
 import { EventDetailComponent } from './features/events/event-detail/event-detail.component';
 import { MyTicketsComponent } from './features/my-tickets/my-tickets.component';
 import { StaffScannerComponent } from './features/staff-scanner/staff-scanner.component';
@@ -51,6 +52,10 @@ export const routes: Routes = [
       {
         path: '',
         component: AdminDashboardComponent
+      },
+      {
+        path: 'events/create',
+        component: AdminCreateEventComponent
       },
       {
         path: 'scanner',
