@@ -9,7 +9,8 @@ export enum UserRole {
   Admin = 1,
   Organizer = 2,
   Staff = 3,
-  Customer = 4
+  Customer = 4,
+  VenueOwner = 5
 }
 
 export interface CurrentUser {

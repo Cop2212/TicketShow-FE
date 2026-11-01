@@ -5,11 +5,16 @@ import { HomeComponent } from './features/home/home.component';
 import { LoginComponent } from './features/auth/login/login.component';
 import { RegisterComponent } from './features/auth/register/register.component';
 import { AdminDashboardComponent } from './features/admin/dashboard/admin-dashboard.component';
+import { AdminEventsComponent } from './features/admin/events/admin-events.component';
 import { AdminCreateEventComponent } from './features/admin/events/admin-create-event.component';
+import { AdminVenuesComponent } from './features/admin/venues/admin-venues.component';
+import { AdminVenueBookingsComponent } from './features/admin/venue-bookings/admin-venue-bookings.component';
+import { AdminOrdersComponent } from './features/admin/orders/admin-orders.component';
 import { AdminUsersComponent } from './features/admin/users/admin-users.component';
 import { AdminRolesComponent } from './features/admin/roles/admin-roles.component';
 import { AdminMenusComponent } from './features/admin/menus/admin-menus.component';
 import { EventDetailComponent } from './features/events/event-detail/event-detail.component';
+import { CheckoutComponent } from './features/checkout/checkout.component';
 import { MyTicketsComponent } from './features/my-tickets/my-tickets.component';
 import { StaffScannerComponent } from './features/staff-scanner/staff-scanner.component';
 
@@ -24,11 +29,15 @@ export const routes: Routes = [
       },
       {
         path: 'events',
-        component: EventDetailComponent
+        component: HomeComponent
       },
       {
         path: 'events/:slug',
         component: EventDetailComponent
+      },
+      {
+        path: 'checkout/:orderCode',
+        component: CheckoutComponent
       },
       {
         path: 'my-tickets',
@@ -57,8 +66,24 @@ export const routes: Routes = [
         component: AdminDashboardComponent
       },
       {
+        path: 'events',
+        component: AdminEventsComponent
+      },
+      {
         path: 'events/create',
         component: AdminCreateEventComponent
+      },
+      {
+        path: 'venues',
+        component: AdminVenuesComponent
+      },
+      {
+        path: 'venue-bookings',
+        component: AdminVenueBookingsComponent
+      },
+      {
+        path: 'orders',
+        component: AdminOrdersComponent
       },
       {
         path: 'scanner',

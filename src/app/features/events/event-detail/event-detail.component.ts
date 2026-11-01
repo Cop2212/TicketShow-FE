@@ -276,8 +276,7 @@ export class EventDetailComponent implements OnInit, OnDestroy {
       next: res => {
         this.reserving.set(false);
         if (res.success && res.data) {
-          this.reservation.set(res.data);
-          this.startTimer(res.data.remainingSeconds || 300);
+          this.router.navigate(['/checkout', res.data.orderCode]);
         }
       },
       error: err => {
